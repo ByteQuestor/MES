@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MES 电池整盘信息仿真系统</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔋</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">🔋</div>
+    <div class="brand-text">
+      <h1>MES 电池整盘信息仿真系统</h1>
+      <p>模拟 MES 向 WCS 提供整盘电池信息查询 · 单文件轻量部署</p>
+    </div>
+  </div>
+  <div class="server-info" id="serverInfo"></div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="trays">料盘管理</button>
+  <button class="tab" data-tab="query">查询测试</button>
+  <button class="tab" data-tab="logs">查询日志</button>
+  <button class="tab" data-tab="api">接口说明</button>
+</nav>
+
+<main>
+
+  <!-- ============ 料盘管理 ============ -->
+  <section id="tab-trays" class="tab-panel active">
+    <div class="toolbar">
+      <button class="btn primary" id="btnNew">＋ 新建料盘</button>
+      <input class="input" id="searchInput" placeholder="搜索框体条码 / 物料条码">
+      <button class="btn" id="btnRefreshTrays">刷新</button>
+      <span class="muted" id="trayCount"></span>
+    </div>
+    <div class="card">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>框体条码</th><th>物料数</th><th>状态统计</th><th>备注</th><th>更新时间</th><th class="w-actions">操作</th>
+          </tr>
+        </thead>
+        <tbody id="trayTbody"></tbody>
+      </table>
+      <div class="empty" id="trayEmpty" hidden>暂无料盘，点击左上角「新建料盘」创建一盘料</div>
+    </div>
+  </section>
+
+  <!-- ============ 查询测试 ============ -->
+  <section id="tab-query" class="tab-panel">
+    <div class="card">
+      <h3>模拟 WCS 扫码查询</h3>
+      <p class="muted desc">输入扫码枪扫到的条码（框体条码或任意一个物料条码），查看 MES 返回的完整响应。此页发起的查询同样会计入查询日志。</p>
+      <div class="query-bar">
+        <input class="input mono" id="queryInput" placeholder="例如: BOX-DEMO-0001 或 BAT-DEMO-0003">
+        <button class="btn primary" id="btnQuery">查 询</button>
+      </div>
+      <div class="meta-row" id="queryMeta"></div>
+      <pre class="json-box" id="queryJson" hidden></pre>
+    </div>
+  </section>
+
+  <!-- ============ 查询日志 ============ -->
+  <section id="tab-logs" class="tab-panel">
+    <div class="toolbar">
+      <button class="btn" id="btnRefreshLogs">刷新</button>
+      <button class="btn danger" id="btnClearLogs">清空日志</button>
+      <span class="muted">每 5 秒自动刷新（仅停留本页时），最多保留最近 500 条</span>
+    </div>
+    <div class="card">
+      <table class="tbl">
+        <thead><tr><th>时间</th><th>查询条码</th><th>结果</th><th>命中方式</th><th>命中框体</th><th>来源 IP</th></tr></thead>
+        <tbody id="logTbody"></tbody>
+      </table>
+      <div class="empty" id="logEmpty" hidden>暂无查询记录。WCS 或「查询测试」发起的查询都会记录在此</div>
+    </div>
+  </section>
+
+  <!-- ============ 接口说明 ============ -->
+  <section id="tab-api" class="tab-panel">
+    <div class="card doc">
+      <h3>WCS 查询接口（核心）</h3>
+      <p>根据扫码得到的条码查询整盘电池信息：条码可以是<b>框体条码</b>，也可以是<b>任意一个物料条码</b>，两种情况均返回整个料盘对象。</p>
+
+      <h4>GET 方式</h4>
+      <pre class="code">GET /api/query?barcode=BOX-DEMO-0001</pre>
+
+      <h4>POST 方式（JSON 或表单均可）</h4>
+      <pre class="code">POST /api/query
+Content-Type: application/json
+
+{"barcode": "BAT-DEMO-0003"}</pre>
+      <p>参数名兼容 <code>barcode</code> / <code>barCode</code> / <code>code</code>。</p>
+
+      <h4>响应（HTTP 恒为 200，是否命中看 data.found）</h4>
+      <pre class="code">{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "found": true,
+    "matchType": "material",
+    "matchedBarcode": "BAT-DEMO-0003",
+    "tray": {
+      "id": "1730000000000000000",
+      "boxBarcode": "BOX-DEMO-0001",
+      "remark": "示例数据，可在界面删除",
+      "materials": [
+        { "barcode": "BAT-DEMO-0001", "status": "OK" },
+        { "barcode": "BAT-DEMO-0002", "status": "OK" },
+        { "barcode": "BAT-DEMO-0003", "status": "NG" }
+      ],
+      "createdAt": "2026-10-28T10:00:00+08:00",
+      "updatedAt": "2026-10-28T10:00:00+08:00"
+    }
+  }
+}</pre>
+      <p>未命中时返回 <code>{"code":0,"message":"ok","data":{"found":false}}</code>；状态码 <code>status</code> 为任意字符串（如 OK / NG / 0 / 1 / A / B）。若同一物料条码出现在多盘，返回创建最早的一盘。</p>
+
+      <h3>管理接口（前端使用，也可用于脚本批量造数）</h3>
+      <pre class="code">GET    /api/trays                查询全部料盘
+POST   /api/trays                新建料盘  {"boxBarcode":"...","remark":"...","materials":[{"barcode":"...","status":"OK"}]}
+PUT    /api/trays/{id}           更新料盘（全量覆盖）
+DELETE /api/trays/{id}           删除料盘
+GET    /api/logs                 查询日志（最近 500 条）
+DELETE /api/logs                 清空查询日志
+GET    /api/health               健康检查 / 服务信息</pre>
+
+      <h3>curl 自测示例</h3>
+      <pre class="code">curl "http://localhost:8080/api/query?barcode=BOX-DEMO-0001"
+curl -X POST "http://localhost:8080/api/query" -H "Content-Type: application/json" -d "{\"barcode\":\"BOX-DEMO-0001\"}"</pre>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ 编辑弹窗 ============ -->
+<div class="mask" id="editorMask" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="editorTitle">新建料盘</h3>
+      <button class="btn sm" id="btnCloseEditor" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>框体条码 <span class="req">*</span></label>
+        <div class="inline">
+          <input class="input mono" id="editBox" placeholder="框体条码">
+          <button class="btn" id="btnRandBox">随机生成</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>备注</label>
+        <input class="input" id="editRemark" placeholder="可选">
+      </div>
+
+      <div class="form-row">
+        <label>物料列表（条码 + 状态码）</label>
+        <div class="mat-tools">
+          <button class="btn sm" id="btnAddRow">＋ 添加一行</button>
+          <span class="sep"></span>
+          <input class="input sm mono" id="genPrefix" value="BAT" title="条码前缀">
+          <input class="input sm" id="genStart" type="number" value="1" min="1" title="起始编号">
+          <input class="input sm" id="genCount" type="number" value="10" min="1" max="500" title="生成数量">
+          <input class="input sm" id="genStatus" value="OK" title="状态码">
+          <button class="btn sm" id="btnGen" title="按前缀+起始编号+数量批量生成物料条码">批量生成</button>
+        </div>
+        <details class="import-box">
+          <summary>批量导入（每行一条：条码,状态码；状态可省略，默认取状态码输入框的值）</summary>
+          <textarea id="importText" rows="4" placeholder="BAT0001,OK&#10;BAT0002,NG&#10;BAT0003"></textarea>
+          <button class="btn sm" id="btnImport">导入</button>
+        </details>
+      </div>
+
+      <div class="mat-scroll">
+        <table class="tbl">
+          <thead><tr><th style="width:56px">#</th><th>物料条码</th><th style="width:170px">状态码</th><th style="width:56px"></th></tr></thead>
+          <tbody id="matTbody"></tbody>
+        </table>
+        <div class="empty" id="matEmpty" hidden>暂无物料，可「添加一行」「批量生成」或「批量导入」</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="muted" id="editCount"></span>
+      <div>
+        <button class="btn" id="btnCancelEditor">取消</button>
+        <button class="btn primary" id="btnSave">保 存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<datalist id="statusList">
+  <option value="OK"></option><option value="NG"></option><option value="0"></option>
+  <option value="1"></option><option value="A"></option><option value="B"></option>
+</datalist>
+
+<script src="app.js"></script>
+</body>
+</html>
